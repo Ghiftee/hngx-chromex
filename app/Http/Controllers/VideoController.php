@@ -19,7 +19,8 @@ class VideoController extends Controller
             $videoData[] = [
                 'id' => $video->id,
                 'name' => $video->name,
-                'path' => $video->path, // Use 'local' disk for local storage
+                'path' => $video->path,
+                'size' => $video->size
             ];
         }
 
@@ -51,12 +52,11 @@ class VideoController extends Controller
             
             // $videoPath = $uploadedFile->storeAs('videos', $videoName, 'local'); // 'local' is the disk name for local storage
             
-            $videoBlobData = base64_decode($request->input('video'));
+            $videoBlobData = $request->input('video');
             // dd($videoBlobData);
             
-            // Define the storage path and chunk size
-            $storagePath = 'video_storage';
-            $chunkSize = 1000000;
+            $storagePath = storage_path('app/render/videos');
+            $chunkSize = 1000000; //1mb
             
             $videoChunksIdentifier = uniqid();
 
@@ -78,12 +78,21 @@ class VideoController extends Controller
                 $fileOffset += strlen($chunkData);
             }
             
+            //combine chunks using ffmpeg
             $combinedVideoFilename = $videoChunksIdentifier . '_combined.webm';
+            $chunkPath = "{$storagePath}/{$videoChunksIdentifier}_chunk_%d.webm";
+            $combinedPath = "{$storagePath}/{$combinedVideoFilename}";
+
+            $ffmpegCommand = "ffmpeg -f concat -i \"concat:{$chunkPath}\" -c copy \"{$combinedPath}\"";
+
+            // Execute the FFmpeg command
+            shell_exec($ffmpegCommand);
+
 
             // Save video information to the database
             $video = new Video();
             $video->name = $combinedVideoFilename;
-            $video->path = '/storage/video_storage/' . $combinedVideoFilename; 
+            $video->path = '/storage/render/videos/' . $combinedVideoFilename; 
             $video->size = $fileOffset;
             $video->save();
         
